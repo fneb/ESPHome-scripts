@@ -1,0 +1,67 @@
+esphome:
+  name: living-room-2
+  friendly_name: Living Room 2
+
+rp2040:
+  board: rpipicow
+  framework:
+    # Required until https://github.com/platformio/platform-raspberrypi/pull/36 is merged
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+
+# Enable logging
+logger:
+
+globals:
+  - id: pre_offset_temp
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: temp_offset
+    type: float
+    restore_value: yes
+    max_restore_data_length: 5
+    initial_value: '-3.0'
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret livingroom2_api
+  services:
+    - service: set_temp_offset
+      variables:
+        living_room_2_temp_offset: float
+      then:
+        - globals.set:
+            id: temp_offset
+            value: !lambda 'return (living_room_2_temp_offset);'
+ota:
+  platform: esphome
+  password: !secret livingroom2_ota
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+i2c:
+  - id: bus_a
+    sda: 4
+    scl: 5
+    scan: true
+
+sensor:
+  - platform: aht10
+    variant: AHT20
+    temperature:
+      name: "Temperature"
+      id: living_room_2_temperature
+      filters: 
+        - lambda: |-
+            id(pre_offset_temp) = x;
+            return x + id(temp_offset);
+    humidity:
+      name: "Relative Humidity"
+      id: living_room_2_humidity
+      filters:
+        - lambda: return 100.0 - (5.0 * ((id(living_room_2_temperature).state) - (id(pre_offset_temp) - ((100.0 - x) / 5.0))));
+    update_interval: 20s
+    
